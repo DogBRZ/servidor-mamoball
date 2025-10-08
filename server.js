@@ -1,110 +1,102 @@
+// server.js - VERSÃO FINAL CORRIGIDA
+console.log('🔧 Iniciando servidor Mamoball...');
+
 const express = require('express');
 const http = require('http');
 const socketIO = require('socket.io');
-const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
+
+// ✅ Configuração CORRETA do Socket.IO
 const io = socketIO(server, {
   cors: {
-    origin: "*", // ✅ Permite TODOS os celulares
+    origin: "*",
     methods: ["GET", "POST"]
   }
 });
 
-// ✅ Serve arquivos estáticos (IMPORTANTE para Railway)
-app.use(express.static('public'));
+// ✅ Middleware importante
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// ✅ Rota PRINCIPAL - corrigida
+// ✅ Rota PRINCIPAL - Teste
 app.get('/', (req, res) => {
+  console.log('📨 Recebida requisição na rota /');
   res.send(`
-    <!DOCTYPE html>
     <html>
-    <head>
-        <title>🎮 Servidor Mamoball</title>
-        <style>
-            body { 
-                font-family: Arial, sans-serif; 
-                text-align: center; 
-                padding: 50px;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: white;
-            }
-            h1 { font-size: 3em; margin-bottom: 20px; }
-            .status { 
-                background: rgba(255,255,255,0.2); 
-                padding: 20px; 
-                border-radius: 10px;
-                margin: 20px auto;
-                max-width: 500px;
-            }
-        </style>
-    </head>
-    <body>
+      <body style="text-align: center; padding: 50px; font-family: Arial;">
         <h1>⚽ MAMOBALL 🎮</h1>
-        <div class="status">
-            <h2>🚂 SERVIDOR ONLINE!</h2>
-            <p>Servidor multiplayer funcionando perfeitamente!</p>
-            <p>📍 Pronto para receber conexões de APKs</p>
-        </div>
+        <h2 style="color: green;">🚀 SERVIDOR ONLINE!</h2>
+        <p>Servidor funcionando perfeitamente!</p>
+        <p>Conecte os APKs para jogar!</p>
         <p>⏰ ${new Date().toLocaleString('pt-BR')}</p>
-    </body>
+      </body>
     </html>
   `);
 });
 
-// ✅ Rota de saúde para o Railway
+// ✅ Rota de saúde
 app.get('/health', (req, res) => {
-  res.status(200).json({ 
+  res.json({ 
     status: 'online', 
-    message: 'Servidor Mamoball funcionando!',
+    message: 'Servidor Mamoball OK!',
     timestamp: new Date().toISOString()
   });
 });
 
-// 🎮 Lógica do jogo
+// ✅ Socket.IO events
 let jogadores = [];
 
 io.on('connection', (socket) => {
-  console.log('📱 NOVO JOGADOR CONECTOU:', socket.id);
+  console.log('📱 Novo jogador conectado:', socket.id);
   jogadores.push(socket.id);
   
-  // Avisa o novo jogador quantos estão online
-  socket.emit('status', { jogadores: jogadores.length });
-  console.log(`📊 Total de jogadores: ${jogadores.length}`);
+  socket.emit('conectado', { 
+    message: 'Conectado ao servidor!',
+    seuId: socket.id,
+    totalJogadores: jogadores.length
+  });
+  
+  // Avisa todos sobre novo jogador
+  io.emit('jogadores_online', { total: jogadores.length });
   
   // Se tem 2 jogadores, inicia partida
   if (jogadores.length >= 2) {
     io.emit('partida_iniciada', { 
-      mensagem: 'Partida encontrada! Iniciando...',
-      totalJogadores: jogadores.length
+      message: 'Partida encontrada! Iniciando jogo...',
+      jogadores: jogadores.length
     });
     console.log('🎯 PARTIDA INICIADA - 2 JOGADORES!');
   }
   
-  // 📨 Recebe movimento e repassa
-  socket.on('movimento', (dados) => {
-    socket.broadcast.emit('movimento_oponente', dados);
+  socket.on('movimento', (data) => {
+    // console.log('🎮 Movimento recebido:', data);
+    socket.broadcast.emit('movimento_oponente', data);
   });
   
-  socket.on('chute', (dados) => {
-    socket.broadcast.emit('chute_oponente', dados);
+  socket.on('chute', (data) => {
+    socket.broadcast.emit('chute_oponente', data);
   });
   
-  // 🚪 Quando desconecta
   socket.on('disconnect', () => {
-    console.log('❌ JOGADOR DESCONECTOU:', socket.id);
+    console.log('❌ Jogador desconectado:', socket.id);
     jogadores = jogadores.filter(id => id !== socket.id);
-    io.emit('status', { jogadores: jogadores.length });
+    io.emit('jogadores_online', { total: jogadores.length });
   });
 });
 
-// 🚀 INICIA SERVIDOR - Railway controla a porta
-const PORT = process.env.PORT || 3000;
+// ✅ CORREÇÃO DA PORTA - IMPORTANTE!
+const PORT = process.env.PORT || 8080;
 server.listen(PORT, '0.0.0.0', () => {
   console.log('=================================');
-  console.log('🚂 SERVIDOR MAMOBALL NO AR!');
-  console.log(`📍 PORTA: ${PORT}`);
-  console.log('🌐 AGUARDANDO JOGADORES...');
+  console.log('🚀 SERVIDOR MAMOBALL INICIADO!');
+  console.log(`📍 Porta: ${PORT}`);
+  console.log('✅ PRONTO PARA RECEBER CONEXÕES!');
   console.log('=================================');
+});
+
+// ✅ Tratamento de erros
+server.on('error', (error) => {
+  console.error('❌ Erro no servidor:', error);
 });
